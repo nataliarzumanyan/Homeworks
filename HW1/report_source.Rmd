@@ -1,0 +1,315 @@
+---
+title: 'Innovation Diffusion Analysis: Figure 03 Humanoid Robot'
+author: "Natali Arzumanyan"
+date: "2026-10-18"
+output: pdf_document
+colorlinks: true
+urlcolor: blue
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE,
+                      fig.align = 'center', fig.width = 7, fig.height = 4)
+dir.create('img', showWarnings = FALSE)
+```
+
+# **Libraries and Functions**
+*Please note that when you see "Figure 03" written, it refers to the humanoid robot which I have chosen for this homework*
+*Libraries and Helper Functions*
+```{r libs}
+libs <- c('ggplot2', 'ggpubr', 'knitr', 'diffusion', 'dplyr')
+
+load_libraries <- function(libs){
+  new_libs <- libs[!(libs %in% installed.packages()[,"Package"])]
+  if(length(new_libs) > 0) {install.packages(new_libs)}
+  lapply(libs, library, character.only = TRUE)
+}
+invisible(load_libraries(libs))
+
+# Bass model: adoptions at time t, f(t)
+bass.f <- function(t, p, q){
+  ((p+q)^2/p) * exp(-(p+q)*t) /
+    (1 + (q/p) * exp(-(p+q)*t))^2
+}
+
+# Bass model: cumulative adoptions up to time t, F(t)
+bass.F <- function(t, p, q){
+  (1 - exp(-(p+q)*t)) /
+    (1 + (q/p) * exp(-(p+q)*t))
+}
+```
+# **Step 1 - Choose an innovation from the list**
+I chose the **Figure 03** humanoid robot from TIME's Best Inventions of 2025 list [Link here](https://time.com/collections/best-inventions-2025/7318493/figure-03/).
+
+Figure 03 is a humanoid robot made by Figure AI. The company wants to build robots in the form of a human being and put them to work across the economy, including in homes. At launch in October 2025 it could do some household tasks, such as folding clothes and loading a dishwasher, but it still needed human help (for example, a person has to start the wash cycle and help if it drops something). Figure AI is collecting a large amount of data to train its Helix neural network so that the robot can do more types of tasks. The CEO, Brett Adcock, aims to have Figure 03 in select homes in 2026 (TIME, 2025).
+
+# **Step 2 - Identify a similar innovation from the past**
+As a look-alike I chose **industrial robots**.
+
+Both are programmable machines that replace or support human physical work, and the technology behind them is similar: sensors, actuators, control software and, increasingly, AI. Figure 03 can be seen as a step from the fixed, single-task industrial robot toward a flexible, general-purpose robot. Industrial robots were first sold to companies, mostly in manufacturing: the first one, Unimate, was installed at a General Motors plant in New Jersey in 1961 (Guinness World Records, n.d.). Figure AI also plans to serve commercial and workplace customers, so the early market looks similar (The Robot Report, 2025).
+
+They are also similar in market impact. Both are expensive, require a big upfront investment, and adoption depends on seeing that the machine really works. This is the "imitation" effect in the Bass model: companies buy robots after seeing competitors use them successfully, and households and firms are likely to react in the same way to success stories and demonstrated capabilities of humanoids. The main difference is that industrial robots work in controlled factory environments, while Figure 03 has to work in unpredictable homes, so Figure 03 will probably diffuse more slowly at first. The details will be discussed in the end.
+
+# **Step 3 - Find historical data**
+The data comes from the International Federation of Robotics (IFR) *World Robotics* report, accessed via Our World in Data, "Annual industrial robots installed" [Link of the data here](https://ourworldindata.org/grapher/annual-industrial-robots-installed). The file contains annual installations by country and for the world. 
+```{r data}
+robots <- read.csv('data/annual-industrial-robots-installed.csv')
+colnames(robots) <- c('entity', 'code', 'year', 'installed')
+
+unique(robots$entity)
+
+world <- robots %>% filter(entity == 'World') %>% arrange(year)
+
+kable(data.frame(Year = as.character(world$year),
+                 Installed = world$installed),
+      col.names = c('Year', 'Robots installed'),
+      format.args = list(big.mark = ','), align = c('l', 'r'))
+```
+
+
+```{r hist-plot}
+ggplot(data = world, aes(x = year, y = installed)) +
+  geom_bar(stat = 'identity') +
+  scale_y_continuous(labels = scales::comma) +
+  scale_x_continuous(breaks = seq(2012, 2024, 2)) +
+  ggtitle('Industrial robots installed - World')
+ggsave('img/robots_world.png', width = 8, height = 5)
+```
+
+The graph shows that the number of industrial robots installed worldwide has generally increased over time. Installations grew from around 160,000 in 2012 to more than 500,000 in 2022. There was a small decrease in 2019, but the numbers increased again afterward. In the last few years, installations have stayed at a similar level. This data helps us understand how industrial robots have been adopted over time and can be used to estimate the Bass Model parameters. However, industrial robots are different from humanoid robots, so our predictions for Figure 03 will be estimates.
+
+# **Step 4 - Estimate Bass Model parameters**
+*Method 1: Non-linear Least Squares*
+```{r nls}
+sales <- world$installed
+t <- 1:length(sales)
+
+bass_m <- nls(sales ~ m * (((p+q)^2/p) * exp(-(p+q)*t)) /
+                (1 + (q/p) * exp(-(p+q)*t))^2,
+              start = list(m = 5000000, p = 0.01, q = 0.3),
+              algorithm = 'port',
+              lower = c(m = sum(sales), p = 0.00001, q = 0.001),
+              upper = c(m = 1e9, p = 1, q = 3))
+
+summary(bass_m)
+```
+
+The Bass Model estimates the market potential at around 10.17 million robots, with a coefficient of innovation (p) of 0.0136 and a coefficient of imitation (q) of 0.187. Since q is much higher than p, the model suggests that imitation plays a more important role in robot adoption than external influences. This means that companies may be more likely to adopt robots after seeing their benefits in other companies.
+
+All three parameter estimates are statistically significant, with p-values below 0.001. However, the market potential estimate is less certain because we only have 13 years of data and the market has not clearly reached saturation. The model's residual standard error is around 37,180 robots, meaning that its fitted annual installation values can differ from the actual values by this amount on a typical scale. Since industrial robots differ from humanoid robots, these results should be treated as a starting point for estimating the potential diffusion of Figure 03, not as exact predictions.
+
+*Method 2 and Comparison*
+```{r diffusion}
+diff_m <- diffusion(sales)
+diff_m
+
+# Comparing the two methods
+est   <- coef(bass_m)
+p_hat <- unname(est['p'])
+q_hat <- unname(est['q'])
+m_hat <- unname(est['m'])
+
+w <- as.numeric(diff_m$w[c(2, 3, 1)])   
+
+params <- data.frame(
+  Parameter = c("p (innovation)", "q (imitation)", "M (market potential)"),
+  NLS = c(sprintf('%.4f', p_hat), sprintf('%.4f', q_hat),
+          format(round(m_hat), big.mark = ',')),
+  Diffusion_package = c(sprintf('%.4f', w[1]), sprintf('%.4f', w[2]),
+                        format(round(w[3]), big.mark = ','))
+)
+knitr::kable(params, align = c('l', 'r', 'r'))
+```
+
+I compared the results from the NLS method with those from the diffusion package. Both methods give similar estimates for the three Bass Model parameters. The coefficient of innovation (p) is around 0.014, while the coefficient of imitation (q) is around 0.18. This suggests that imitation plays a larger role in industrial robot adoption than external influences. The estimated market potential is around 10–11 million robots. Although the results are similar, they are estimates based on historical industrial robot installations and should be interpreted with caution when predicting the adoption of humanoid robots.
+
+*Model Fit*
+```{r fit}
+world$pred_installed <- bass.f(t, p_hat, q_hat) * m_hat
+
+ggplot(data = world, aes(x = year, y = installed)) +
+  geom_bar(stat = 'identity') +
+  geom_point(aes(y = pred_installed), color = 'brown', size = 2) +
+  scale_y_continuous(labels = scales::comma) +
+  scale_x_continuous(breaks = seq(2012, 2024, 2)) +
+  ggtitle('Industrial robots: actual (bars) vs. Bass model (points)')
+ggsave('img/robots_bass_fit.png', width = 8, height = 5)
+
+rmse <- sqrt(mean((world$installed - world$pred_installed)^2))
+r2 <- 1 - sum((world$installed - world$pred_installed)^2) /
+          sum((world$installed - mean(world$installed))^2)
+t_peak <- log(q_hat / p_hat) / (p_hat + q_hat)
+
+kable(data.frame(
+  Measure = c('RMSE (robots per year)', 'R-squared', 'Predicted peak (t)', 'Actual peak (t)'),
+  Value = c(format(round(rmse), big.mark = ','), sprintf('%.3f', r2),
+            sprintf('%.1f', t_peak), as.character(which.max(world$installed)))
+), align = c('l', 'r'))
+```
+
+The Bass model follows the general upward trend in industrial robot installations, with an R-squared of 0.943, meaning it explains most of the variation in the data. However, it does not fully capture the changes in installations, especially the drop in 2018–2020 and the sharp increase in 2021. The model predicts that yearly installations will peak around 2024, while the highest actual number of installations was in 2022. Since the model is based on only 13 years of data and does not cover the full diffusion process, the results should be interpreted with caution.
+
+# **Step 5 - Predict the diffusion of the innovation selected in step 1**
+Following the "looks-like" approach from class, I assume Figure 03 follows the same diffusion pattern as industrial robots, so I use the estimated p and q. The market potential is estimated separately in Step 6. I set t = 1 as 2026, the year when Figure AI plans to put the robot in select homes (TIME, 2025)
+```{r figure03-curves}
+p_fig <- p_hat
+q_fig <- q_hat
+
+cum_ad <- ggplot(data.frame(t = c(1, 25)), aes(t)) +
+  stat_function(fun = bass.F, args = c(p = p_fig, q = q_fig)) +
+  labs(title = 'Figure 03: cumulative adoptions', y = 'F(t), share of M')
+
+time_ad <- ggplot(data.frame(t = c(1, 25)), aes(t)) +
+  stat_function(fun = bass.f, args = c(p = p_fig, q = q_fig)) +
+  labs(title = 'Figure 03: adoptions at time t', y = 'f(t), share of M')
+
+ggarrange(cum_ad, time_ad)
+ggsave('img/figure03_diffusion_curves.png', width = 10, height = 5)
+```
+The first graph shows the cumulative adoption of Figure 03 over time. The curve increases slowly at first, then grows faster as more people and companies start using the robot. Later, the growth slows down as the market approaches its potential limit. This S-shaped curve is typical of the Bass Model and shows how adoption may develop over time.
+
+The second graph shows the share of the market adopting Figure 03 in each period. Adoption increases at first and reaches its highest point after around 13 years. After that, adoption starts to decrease because fewer potential adopters remain. This means that the model predicts the fastest adoption around the peak, followed by a gradual slowdown.
+
+```{r figure03-milestones}
+# t = 1 is 2026, so calendar year = 2025 + t
+t_grid <- 1:25
+F_grid <- bass.F(t_grid, p_fig, q_fig)
+new_share <- diff(c(0, F_grid))   # share of M adopting in each year
+
+peak_year <- 2025 + t_grid[which.max(new_share)]
+year_50   <- 2025 + t_grid[which(F_grid >= 0.5)[1]]
+year_90   <- 2025 + t_grid[which(F_grid >= 0.9)[1]]
+
+t_peak_fig <- log(q_fig / p_fig) / (p_fig + q_fig)
+t_half <- uniroot(function(x) bass.F(x, p_fig, q_fig) - 0.5, c(0.1, 100))$root
+t_90   <- uniroot(function(x) bass.F(x, p_fig, q_fig) - 0.9, c(0.1, 100))$root
+
+kable(data.frame(
+  Milestone = c('Peak of yearly adoptions', '50% of market adopted',
+                '90% of market adopted'),
+  Years_after_launch = sprintf('%.1f', c(t_peak_fig, t_half, t_90)),
+  Calendar_year = as.character(c(peak_year, year_50, year_90))
+), align = c('l', 'r', 'r'))
+```
+
+The milestone table shows that yearly adoptions are expected to peak in 2039, about 13.1 years after the start of 2026. Adoption levels in the years just before and after the peak are very similar. The model estimates that 50% of the potential market will adopt Figure 03 by 2039 and 90% by 2050. These results suggest that the adoption of humanoid robots could take many years. However, the predictions are based on the Bass Model and historical industrial robot data, so actual adoption may be different.
+
+# **Step 6 - Choose a scope (global or country-specific)**
+I chose the global scope for three reasons. First, Figure AI aims to use humanoid robots across the global economy (TIME, 2025), so the potential market is not limited to one country. Second, the global industrial robot data provides a more complete series for estimating the Bass Model parameters and keeps the analysis consistent. Third, the US data is less stable, with yearly installations ranging from around 21,000 to 40,000 robots and no clear S-shaped pattern, which could make the estimates less reliable.
+To estimate the market potential, I use Fermi logic, multiplying the estimated number of households worldwide by the share that can afford the robot and the share that would want to buy it. This gives an approximate market size for the pessimistic, base, and optimistic scenarios.
+```{r fermi}
+# Households worldwide = world population / average household size
+world_population <- 8.2e9   # UN World Population Prospects 2024 
+avg_hh_size      <- 3.5     # UN DESA Database on Household Size and Composition
+world_households <- world_population / avg_hh_size
+
+scenarios <- data.frame(
+  scenario   = c('Pessimistic', 'Base', 'Optimistic'),
+  affordable = c(0.07, 0.10, 0.16),   # Pew (2015): 7% high income, +9% upper-middle
+  willing    = c(0.38, 0.50, 0.65)    # YouGov (2025): 38%; Altman Solon (2025): 65%
+)
+scenarios$M <- world_households * scenarios$affordable * scenarios$willing
+
+M_base <- scenarios$M[scenarios$scenario == 'Base']
+
+kable(scenarios, digits = 2,
+      col.names = c('Scenario', 'Can afford', 'Would want', 'Market potential M (households)'),
+      format.args = list(big.mark = ','))
+```
+
+I estimated its market potential using Fermi logic: the number of households worldwide multiplied by the shares that can afford the robot and would want to buy it. I estimated the number of households by dividing the 2024 world population of about 8.2 billion by the average household size of 3.5 people, using the UN's World Population Prospects 2024 and UN DESA's Database on Household Size and Composition. [Link here](https://population.un.org/wpp/) [and here](https://www.un.org/development/desa/pd/data/households-and-living-arrangements-data)
+
+Figure AI has not confirmed the robot's price, so I assumed a price of around $20,000, based on estimates discussed by Altman Solon (2025) and the listed price of the comparable 1X NEO robot reported by Sacra (2025). For affordability, I used Pew Research Center (2015), which estimates that 7% of the world's population is high-income and another 9% is upper-middle-income. Based on this, I assumed affordability shares of 7%, 10%, and 16% for the pessimistic, base, and optimistic scenarios. These are approximations because the original data refers to people, not households.[Link here](https://www.altmansolon.com/thought-leadership/humanoid-home-robotics-survey-altman-solon) [and here](https://www.pewresearch.org/short-reads/2015/07/09/how-americans-compare-with-the-global-middle-class/)
+
+For willingness to buy, I used YouGov (2025), which found that 38% of US adults were interested in household robots, and the Altman Solon Home Robotics Survey (2025), which reported 65% interest in advanced home robots. I used 38%, 50%, and 65% across the three scenarios. Since stated interest does not guarantee a purchase and both surveys cover US consumers, applying these percentages worldwide is a limitation. [Link here](https://www.humanoidsdaily.com/news/new-survey-reveals-what-americans-actually-want-from-home-robots-and-what-they-fear)
+
+The estimated market potential is 62.3 million households in the pessimistic scenario, 117.1 million in the base scenario, and 243.7 million in the optimistic scenario. Assuming one robot per household, these values also represent potential robot sales. The wide range shows how strongly the estimate depends on affordability and willingness to buy. These figures are long-term estimates, not actual sales forecasts, because the price and several assumptions remain uncertain.
+
+# **Step 7 - Estimate the number of adopters by period**
+```{r forecast}
+years <- 2026:2050
+t_new <- 1:length(years)
+
+forecast <- data.frame(year = years, t = t_new)
+
+for (i in 1:nrow(scenarios)) {
+  M_i   <- scenarios$M[i]
+  name  <- scenarios$scenario[i]
+  cum_i <- bass.F(t_new, p_fig, q_fig) * M_i   # cumulative adopters A(t) = M x F(t)
+  forecast[[paste0('cumulative_', name)]] <- cum_i
+  # new adopters in year t = change in cumulative adopters,
+  # so the two columns always reconcile
+  forecast[[paste0('adopters_', name)]] <- diff(c(0, cum_i))
+}
+
+fc_tab <- data.frame(
+  Year     = as.character(forecast$year),
+  Pess_new = forecast$adopters_Pessimistic / 1e6,
+  Pess_cum = forecast$cumulative_Pessimistic / 1e6,
+  Base_new = forecast$adopters_Base / 1e6,
+  Base_cum = forecast$cumulative_Base / 1e6,
+  Opt_new  = forecast$adopters_Optimistic / 1e6,
+  Opt_cum  = forecast$cumulative_Optimistic / 1e6
+)
+
+kable(fc_tab, digits = 2, longtable = TRUE, align = 'lrrrrrr',
+      col.names = c('Year', 'Pess. new', 'Pess. cum.', 'Base new',
+                    'Base cum.', 'Opt. new', 'Opt. cum.'),
+      caption = 'Estimated adopters of Figure 03 (millions of households)')
+```
+
+```{r forecast-plots}
+# Plot: new adopters per year, three scenarios
+ggplot(forecast, aes(x = year)) +
+  geom_line(aes(y = adopters_Base, color = 'Base'), linewidth = 1) +
+  geom_line(aes(y = adopters_Pessimistic, color = 'Pessimistic'), linewidth = 1) +
+  geom_line(aes(y = adopters_Optimistic, color = 'Optimistic'), linewidth = 1) +
+  scale_y_continuous(labels = scales::comma) +
+  labs(title = 'Figure 03: estimated new adopters per year (global households)',
+       y = 'Number of adopters', color = 'Scenario')
+ggsave('img/figure03_adopters_per_year.png', width = 8, height = 5)
+
+# Cumulative, base case
+ggplot(forecast, aes(x = year, y = cumulative_Base)) +
+  geom_bar(stat = 'identity') +
+  scale_y_continuous(labels = scales::comma) +
+  labs(title = 'Figure 03: cumulative adopters, base case (global households)',
+       y = 'Cumulative adopters')
+ggsave('img/figure03_cumulative_base.png', width = 8, height = 5)
+```
+
+```{r peak-year}
+peak_adopters   <- max(forecast$adopters_Base)
+peak_year_table <- forecast$year[which.max(forecast$adopters_Base)]
+
+c(peak_year_step5 = peak_year, peak_year_table = peak_year_table)
+peak_adopters
+```
+In the base scenario, yearly adoptions of Figure 03 are expected to increase from about 1.7 million in 2026 to a peak of around 6.3 million in 2039, and then decline. The cumulative number of adopting households is expected to reach about 12.3 million by 2030 and 106.7 million by 2050, which is around 91% of the estimated market potential. At their peaks, yearly adoptions reach about 3.4 million in the pessimistic scenario and 13.1 million in the optimistic scenario. All three scenarios peak in the same year because they use the same adoption pattern but different market sizes. Assuming one robot per household, these numbers also represent estimated robot sales. However, these are only estimates, and actual adoption may differ because the model is based on industrial robot data rather than home humanoid robot sales.
+
+# **Limitations**
+The comparison is not perfect. Industrial robots work in factories, while Figure 03 is designed for homes. Because home environments are more unpredictable, its adoption may be slower.
+
+The historical data is limited. My data starts in 2012, although industrial robots have existed since 1961. This may affect the accuracy of the model's estimates. Also, yearly installations include replacement robots, not only first-time purchases.
+
+The market size is based on assumptions. Figure AI has not confirmed the final price, so I assumed around $20,000. The affordability data is old, and the surveys measure interest in the USA rather than actual purchases. I also assumed one robot per household and did not include the business market.
+
+Adoption may differ between countries. Figure 03 may first be adopted in a few countries, while other countries may adopt it later. The forecast also assumes a 2026 launch, based on the CEO's statement.
+
+The Bass model has limitations. It does not account for changes in price, competition, or regulations. The three scenarios use the same adoption pattern and differ only in market size, so they do not show how the speed of adoption could change.
+
+# **Summary**
+This analysis shows how a look-alike product can be used to forecast a product that has no sales history yet. The main lesson is that the shape of the adoption curve comes from the look-alike, while the size of the market comes from my own assumptions, and the second part is much more uncertain. For a company like Figure AI, this means that the price and the number of households that can afford the robot are as important as how fast people copy early users. Since imitation is the main driver in the model, real examples of the robot working in homes would probably help adoption more than advertising. When real sales data becomes available, the parameters should be re-estimated and compared with this forecast.
+
+# **References**
+- Altman Solon (2025). *Humanoid Home Robots: The Gap Between Interest and Adoption* (Home Robotics Survey). <https://www.altmansolon.com/thought-leadership/humanoid-home-robotics-survey-altman-solon>
+- Consulting.us (2025, December 1). *Consumers interested in home robots, but not willing to pay up yet.* <https://www.consulting.us/news/12717/consumers-interested-in-home-robots-but-not-willing-to-pay-up-yet>
+- Guinness World Records (n.d.). *First industrial production robot.* <https://www.guinnessworldrecords.com/world-records/411563-first-industrial-production-robot>
+- International Federation of Robotics (IFR). *World Robotics* (data on annual industrial robots installed), accessed via Our World in Data. Accessed October 2026.
+- Pew Research Center (2015). *A Global Middle Class Is More Promise than Reality* (Kochhar, R.). <https://www.pewresearch.org/global/2015/07/08/about-the-report/>
+- Sacra (2025). *Figure AI company report* (price of the 1X NEO home robot). <https://sacra.com/chat/h/355de630-a753-44b9-a692-c3fb094347d5/>
+- The Robot Report (2025, October 9). *Figure AI designs Figure 03 humanoid for AI, home use, and scaling.* <https://www.therobotreport.com/figure-ai-designs-figure-03-humanoid-ai-home-use-scaling/>
+- TIME (2025). *The Best Inventions of 2025: Figure 03.* <https://time.com/collections/best-inventions-2025/7318493/figure-03/>
+- United Nations, Department of Economic and Social Affairs, Population Division (2024). *World Population Prospects 2024.* <https://population.un.org/wpp/>
+- United Nations, Department of Economic and Social Affairs, Population Division. *Database on Household Size and Composition.* <https://population.un.org/Household/index.html>
+- YouGov (2025). *Two in five Americans are interested in having a household robot take care of their chores.* <https://yougov.com/en-us/articles/51596-two-in-five-americans-are-interested-in-having-a-household-robot-take-care-of-their-chores>

@@ -1,0 +1,36 @@
+{
+  "chart": {
+    "title": "New industrial robots installed per year",
+    "note": "Example machines that are not classified as robots: software (e.g., voice assistants), remote-controlled drones, self-driving cars, “smart” washing machines.",
+    "citation": "International Federation of Robotics via AI Index Report (2026)",
+    "originalChartUrl": "https://ourworldindata.org/grapher/annual-industrial-robots-installed?v=1&csvType=full&useColumnShortNames=false",
+    "selection": [
+      "China",
+      "Germany",
+      "Japan",
+      "United States",
+      "South Korea"
+    ]
+  },
+  "columns": {
+    "Annual industrial robots installed": {
+      "titleShort": "Annual industrial robots installed",
+      "titleLong": "Annual industrial robots installed",
+      "descriptionShort": "Industrial robots are defined by the source as automatically controlled, reprogrammable, and multipurpose machines that can move in three or more directions and perform a variety of tasks in industrial settings.",
+      "descriptionKey": "- Industrial robots are machines used in factories to automate tasks like welding, assembly, and packaging.\n- They are defined as automatically controlled, reprogrammable, and multipurpose machines that can move in three or more directions.\n- Reprogrammable means their functions can be changed through software without altering their physical parts.\n- Multipurpose means they can be adapted for different tasks with mechanical changes.\n- Robots are becoming easier to install and more flexible, which means even small production runs can be automated.\n- Companies use robots to improve product quality, increase speed, reduce waste, and cut costs.",
+      "shortUnit": "",
+      "unit": "robots",
+      "timespan": "2011-2024",
+      "type": "Integer",
+      "owidVariableId": 1227958,
+      "shortName": "industrial_robot_installations",
+      "lastUpdated": "2026-04-20",
+      "nextUpdate": "2027-04-20",
+      "citationShort": "International Federation of Robotics via AI Index Report (2026) – with minor processing by Our World in Data",
+      "citationLong": "International Federation of Robotics via AI Index Report (2026) – with minor processing by Our World in Data. “Annual industrial robots installed” [dataset]. AI Index Report, “AI Index Report” [original data].",
+      "fullMetadata": "https://api.ourworldindata.org/v1/indicators/1227958.metadata.json"
+    }
+  },
+  "dateDownloaded": "2026-10-18",
+  "activeFilters": {}
+}
